@@ -16,16 +16,30 @@ type reader struct {
 	err        error
 }
 
-func Read(atoms atomlayer.BaggageContext) (r reader) {
-	r.remaining = atoms
+type Reader *reader
+
+func Read(baggage atomlayer.BaggageContext) (r reader) {
+	r.remaining = baggage
 	r.level = -1
 	r.advance()
 	return
 }
 
-func Open(atoms atomlayer.BaggageContext, bagIndex uint64) (r reader) {
-	// TODO: this
-	return Read(atoms)
+// Reads data from the specified bag, only tracking skipped atoms from this bag.
+func Open(baggage atomlayer.BaggageContext, bagIndex uint64) (r reader) {
+	target := MakeIndexedHeader(0, bagIndex)
+	exists, overflowed, i := find(baggage, 0, target)
+
+	r.overflowed = overflowed
+	r.level = 0
+
+	if exists {
+		_,_,j := find(baggage, i+1, target)
+		r.remaining = baggage[i+1:j]
+	}
+
+	r.advance()
+	return
 }
 
 // Closes the reader, treating all remaining atoms as skipped
@@ -48,7 +62,7 @@ func (r *reader) Close() {
 }
 
 // Advances r.next zero or more atoms, until it's a header atom.  If it's already a header atom, does nothing.
-// Returns the headeratom and its level.
+// Returns the header atom and its level.
 func (r *reader) advanceToNextHeader() (atomlayer.Atom, int) {
 	for {
 		switch {
@@ -253,4 +267,22 @@ func invalidGrandchild(currentLevel, childLevel int) error {
 
 func invalidExit() error {
 	return fmt.Errorf("Exit called too many times without corresponding bag entries")
+}
+
+// Finds the specified atom in the baggage, stopping at the first atom lexicographically larger than it.
+// Returns:
+// 		exists - true if the atom was found, false otherwise
+//		overflowed - true if the overflow marker was found between startat and i, false otherwise
+// 		i - the index of the match, or insertion index if not found
+func find(baggage atomlayer.BaggageContext, startat int, target atomlayer.Atom) (exists bool, overflowed bool, i int) {
+	for i=startat; i<len(baggage); i++ {
+		overflowed = overflowed || atomlayer.IsTrimMarker(baggage[i])
+
+		switch bytes.Compare(baggage[i], target) {
+		case -1: continue							// Haven't encountered yet
+		case 0:  exists = true; return				// Found it
+		case 1:  exists = false; return				// Went past it
+		}
+	}
+	return
 }

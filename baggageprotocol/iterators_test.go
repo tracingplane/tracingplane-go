@@ -685,3 +685,146 @@ func TestSimpleXTraceBaggage2(t *testing.T) {
 	assert.Nil(t, reader.Next())
 	assert.Nil(t, reader.Enter())
 }
+
+func TestFind(t *testing.T) {
+	baggage := atoms(
+		header(0, 0),
+			data(5),
+		header(0, 2),
+			data(8),
+			[]byte{},
+		header(0, 4),
+			data(8),
+	)
+
+	found, overflowed, i := find(baggage, 0, header(0, 0))
+
+	assert.True(t, found)
+	assert.False(t, overflowed)
+	assert.Equal(t, 0, i)
+
+	found, overflowed, i = find(baggage, i+1, header(0, 0))
+	assert.False(t, found)
+	assert.False(t, overflowed)
+	assert.Equal(t, 2, i)
+
+
+	found, overflowed, i = find(baggage, 0, header(0, 1))
+
+	assert.False(t, found)
+	assert.False(t, overflowed)
+	assert.Equal(t, 2, i)
+
+
+	found, overflowed, i = find(baggage, 0, header(0, 2))
+
+	assert.True(t, found)
+	assert.False(t, overflowed)
+	assert.Equal(t, 2, i)
+
+	found, overflowed, i = find(baggage, i+1, header(0, 2))
+	assert.False(t, found)
+	assert.True(t, overflowed)
+	assert.Equal(t, 5, i)
+
+
+	found, overflowed, i = find(baggage, 0, header(0, 3))
+
+	assert.False(t, found)
+	assert.True(t, overflowed)
+	assert.Equal(t, 5, i)
+
+
+	found, overflowed, i = find(baggage, 0, header(0, 4))
+
+	assert.True(t, found)
+	assert.True(t, overflowed)
+	assert.Equal(t, 5, i)
+
+	found, overflowed, i = find(baggage, i+1, header(0, 4))
+	assert.False(t, found)
+	assert.False(t, overflowed)
+	assert.Equal(t, 7, i)
+
+
+	found, overflowed, i = find(baggage, 0, header(0, 5))
+
+	assert.False(t, found)
+	assert.True(t, overflowed)
+	assert.Equal(t, 7, i)
+}
+
+func TestOpenBag(t *testing.T) {
+	baggage := atomlayer.BaggageContext{
+		header(0, 3),
+			data(7),
+			data(100),
+			header(1, 0),
+				data(6),
+			header(1, 3),
+				data(15),
+		header(0, 4),
+			data(2),
+			header(1,0),
+				data(20),
+		header(0,5),
+			data(2),
+			data(11),
+			[]byte{},
+			header(1, 1000000),
+				data(15),
+		header(0, 10000001),
+			data(5,5,5,5,5),
+	}
+
+	r := Open(baggage, 4)
+
+	assert.Equal(t, 0, r.level)
+	assert.Equal(t, 0, len(r.skipped))
+	assert.Equal(t, 0, len(r.currentPath))
+	assert.False(t, r.overflowed)
+
+	assert.Equal(t, []byte{2}, r.Next())
+	assert.True(t, r.EnterIndexed(0))
+	assert.Equal(t, []byte{20}, r.Next())
+	assert.Nil(t, r.Next())
+	r.Exit()
+	assert.Nil(t, r.Error())
+	assert.Nil(t, r.Next())
+	assert.Nil(t, r.Enter())
+
+	r.Exit()
+	assert.NotNil(t, r.Error())
+}
+
+func TestOpenBagOverflow(t *testing.T) {
+	baggage := atoms(
+		header(0, 0),
+			data(7),
+			data(100),
+			[]byte{},
+		header(0, 3),
+			data(6),
+	)
+
+	r := Open(baggage, 3)
+	assert.True(t, r.overflowed)
+
+	r = Open(baggage, 0)
+	assert.False(t, r.overflowed)
+
+	baggage = atoms(
+		header(0, 0),
+			data(7),
+			data(100),
+		header(0, 3),
+			[]byte{},
+			data(6),
+	)
+
+	r = Open(baggage, 3)
+	assert.False(t, r.overflowed)
+
+	r = Open(baggage, 0)
+	assert.False(t, r.overflowed)
+}
