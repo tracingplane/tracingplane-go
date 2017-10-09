@@ -7,6 +7,13 @@ import (
 	"fmt"
 )
 
+// Provides the base declaration of BaggageContext and Atoms.  BaggageContext is just a slice of atoms.
+// Also provides implementation of the five fundamental propagation primitives:
+//  * Branch -- duplicate a context because execution is branching
+//  * Merge -- merge two contexts from merging execution branches
+//  * Serialize / Deserialize --
+//  * Trim -- impose size restrictions on context
+
 type Atom []byte
 type BaggageContext []Atom
 

@@ -53,7 +53,7 @@ func MakeIndexedHeader(level int, index uint64) []byte {
 }
 
 func MakeKeyedHeader(level int, key []byte) []byte {
-	prefix := 0x80 | ((uint8(level) << 3) & 0x78) | 0x02
+	prefix := 0x80 | ((uint8(15 - level) << 3) & 0x78) | 0x02
 	return append(append(make([]byte, 0, len(key)+1), prefix), key...)
 }
 

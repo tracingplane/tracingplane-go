@@ -64,3 +64,11 @@ func TestInterpretHeaderAtoms(t *testing.T) {
 	checkHeaderAtomLevel(t, 14, []byte{17 << 3})
 	checkHeaderAtomLevel(t, 15, []byte{16 << 3})
 }
+
+func TestMakeHeaderAtom(t *testing.T) {
+	assert.Equal(t, []byte{248, 5}, MakeIndexedHeader(0, 5))
+	assert.Equal(t, []byte{240, 7}, MakeIndexedHeader(1, 7))
+	assert.Equal(t, []byte{250, 104, 105}, MakeKeyedHeader(0, []byte("hi")))
+	assert.Equal(t, []byte{242, 111, 107}, MakeKeyedHeader(1, []byte("ok")))
+
+}
