@@ -6,19 +6,17 @@ import (
 	"bytes"
 )
 
-type reader struct {
+type Reader struct {
 	next       atomlayer.Atom
 	currentPath []atomlayer.Atom
-	remaining  atomlayer.BaggageContext
-	skipped    atomlayer.BaggageContext
+	remaining  []atomlayer.Atom
+	Skipped    []atomlayer.Atom
 	level      int
-	overflowed bool
-	err        error
+	Overflowed bool
+	Err        error
 }
 
-type Reader *reader
-
-func Read(baggage atomlayer.BaggageContext) (r reader) {
+func Read(baggage []atomlayer.Atom) (r Reader) {
 	r.remaining = baggage
 	r.level = -1
 	r.advance()
@@ -26,11 +24,11 @@ func Read(baggage atomlayer.BaggageContext) (r reader) {
 }
 
 // Reads data from the specified bag, only tracking skipped atoms from this bag.
-func Open(baggage atomlayer.BaggageContext, bagIndex uint64) (r reader) {
+func Open(baggage []atomlayer.Atom, bagIndex uint64) (r Reader) {
 	target := MakeIndexedHeader(0, bagIndex)
 	exists, overflowed, i := find(baggage, 0, target)
 
-	r.overflowed = overflowed
+	r.Overflowed = overflowed
 	r.level = 0
 
 	if exists {
@@ -42,19 +40,19 @@ func Open(baggage atomlayer.BaggageContext, bagIndex uint64) (r reader) {
 	return
 }
 
-// Closes the reader, treating all remaining atoms as skipped
-func (r *reader) Close() {
+// Closes the Reader, treating all remaining atoms as skipped
+func (r *Reader) Close() {
 	// Exit any current bags
-	for r.level >= 0 { r.Exit() }
+	for len(r.currentPath) > 0 { r.Exit() }
 
 	// Make sure we're not at data atoms
 	r.advanceToNextHeader()
 
 	// Remaining are skipped
 	if r.next != nil {
-		r.skipped = append(r.skipped, r.next)
+		r.Skipped = append(r.Skipped, r.next)
 		if len(r.remaining) > 0 {
-			r.skipped = append(r.skipped, r.remaining...)
+			r.Skipped = append(r.Skipped, r.remaining...)
 			r.remaining = nil
 		}
 		r.next = nil
@@ -63,11 +61,11 @@ func (r *reader) Close() {
 
 // Advances r.next zero or more atoms, until it's a header atom.  If it's already a header atom, does nothing.
 // Returns the header atom and its level.
-func (r *reader) advanceToNextHeader() (atomlayer.Atom, int) {
+func (r *Reader) advanceToNextHeader() (atomlayer.Atom, int) {
 	for {
 		switch {
 		case r.next == nil: 					goto noheader							// End of baggage or error
-		case atomlayer.IsTrimMarker(r.next): 	r.overflowed = true; goto nextatom		// Handle overflow marker
+		case atomlayer.IsTrimMarker(r.next): 	r.Overflowed = true; goto nextatom		// Handle overflow marker
 		case IsHeader(r.next): 					goto foundheader 						// Found the next header atom
 		case IsData(r.next): 					goto nextatom							// Skip any data atoms
 		}
@@ -87,7 +85,7 @@ func (r *reader) advanceToNextHeader() (atomlayer.Atom, int) {
 }
 
 // Advance into the next child bag of the next bag, if there is one; if there isn't, does nothing, and returns nil
-func (r *reader) Enter() atomlayer.Atom {
+func (r *Reader) Enter() atomlayer.Atom {
 	header, level := r.advanceToNextHeader()
 
 	switch {
@@ -108,17 +106,17 @@ func (r *reader) Enter() atomlayer.Atom {
 }
 
 // Advance to the specified child bag, ignoring all preceding child bags, and stopping if we reach the end of bag
-func (r *reader) EnterIndexed(index uint64) bool {
+func (r *Reader) EnterIndexed(index uint64) bool {
 	return r.enter(MakeIndexedHeader(r.level + 1, index))
 }
 
 // Advance to the specified child bag, ignoring all preceding child bags, and stopping if we reach the end of bag
-func (r *reader) EnterKeyed(key []byte) bool {
+func (r *Reader) EnterKeyed(key []byte) bool {
 	return r.enter(MakeKeyedHeader(r.level + 1, key))
 }
 
 // Advance to provided header atom, ignoring all preceding child bags, and stopping if we reach the end of bag
-func (r *reader) enter(target []byte) bool {
+func (r *Reader) enter(target []byte) bool {
 	for {
 		header, level := r.advanceToNextHeader()
 
@@ -152,7 +150,7 @@ func (r *reader) enter(target []byte) bool {
 }
 
 // Skips bags, treating them as unprocessed, until we reach a bag at or below the specified level
-func (r *reader) skipuntil(stopAtLevel int) {
+func (r *Reader) skipuntil(stopAtLevel int) {
 	skippedAtoms := append(append([]atomlayer.Atom(nil), r.currentPath...), r.next)
 	r.advance()
 	for {
@@ -171,9 +169,9 @@ func (r *reader) skipuntil(stopAtLevel int) {
 		}
 
 		trimmarker:
-		switch r.overflowed {
+		switch r.Overflowed {
 		case true: goto nextatom											// Ignore redundant trim marker
-		case false: r.overflowed = true; goto skipatom								// First trim marker seen
+		case false: r.Overflowed = true; goto skipatom								// First trim marker seen
 		}
 
 		skipatom:
@@ -184,11 +182,11 @@ func (r *reader) skipuntil(stopAtLevel int) {
 	}
 
 	finish:
-	r.skipped = atomlayer.Merge(r.skipped, skippedAtoms);
+	r.Skipped = atomlayer.Merge(r.Skipped, skippedAtoms);
 }
 
 // Advance to the end of the next bag and pop back up to the parent
-func (r *reader) Exit() {
+func (r *Reader) Exit() {
 	for {
 		switch header, level := r.advanceToNextHeader(); {
 		case len(r.currentPath) == 0:	r.seterror(invalidExit()); return 		// Called exit too many times
@@ -208,12 +206,12 @@ func (r *reader) Exit() {
 }
 
 // Reads the payload of the next data atom from the next bag.  Returns nil if there are no data atoms remaining
-func (r *reader) Next() []byte {
+func (r *Reader) Next() []byte {
 	for {
 		// Non-data atoms
 		switch {
 		case r.next == nil:						goto nodata								// End of baggage or an error
-		case atomlayer.IsTrimMarker(r.next): 	r.overflowed = true; goto nextatom		// Trim marker, continue
+		case atomlayer.IsTrimMarker(r.next): 	r.Overflowed = true; goto nextatom		// Trim marker, continue
 		case !IsData(r.next): 					goto nodata								// Not a data atom
 		}
 
@@ -232,21 +230,21 @@ func (r *reader) Next() []byte {
 }
 
 // Returns the error if one occurred.  All operations stop after an error occurs
-func (r *reader) Error() error {
-	return r.err
+func (r *Reader) Error() error {
+	return r.Err
 }
 
-func (r *reader) seterror(err error) error {
+func (r *Reader) seterror(err error) error {
 	if err != nil {
-		r.err = err
+		r.Err = err
 		r.next = nil
 	}
-	return r.err
+	return r.Err
 }
 
-func (r *reader) advance() {
+func (r *Reader) advance() {
 	switch {
-	case r.err != nil: 							goto exhausted 							// Error occurred - stop
+	case r.Err != nil: 							goto exhausted 							// Error occurred - stop
 	case len(r.remaining) == 0: 				goto exhausted							// No atoms remaining
 	default: 									goto advance							// Advance to next atom
 	}
@@ -267,22 +265,4 @@ func invalidGrandchild(currentLevel, childLevel int) error {
 
 func invalidExit() error {
 	return fmt.Errorf("Exit called too many times without corresponding bag entries")
-}
-
-// Finds the specified atom in the baggage, stopping at the first atom lexicographically larger than it.
-// Returns:
-// 		exists - true if the atom was found, false otherwise
-//		overflowed - true if the overflow marker was found between startat and i, false otherwise
-// 		i - the index of the match, or insertion index if not found
-func find(baggage atomlayer.BaggageContext, startat int, target atomlayer.Atom) (exists bool, overflowed bool, i int) {
-	for i=startat; i<len(baggage); i++ {
-		overflowed = overflowed || atomlayer.IsTrimMarker(baggage[i])
-
-		switch bytes.Compare(baggage[i], target) {
-		case -1: continue							// Haven't encountered yet
-		case 0:  exists = true; return				// Found it
-		case 1:  exists = false; return				// Went past it
-		}
-	}
-	return
 }

@@ -9,16 +9,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-
-func TestSliceEqual(t *testing.T) {
-	assert.NotEqual(t, make([]byte, 0), nil)
-	assert.NotEqual(t, nil, make([]byte, 0))
-	assert.False(t, make([]byte, 0) == nil)
-
-	arr := []byte{0}
-	assert.NotEqual(t, arr[1:], nil)
-}
-
 func TestSimpleEnter1(t *testing.T) {
 	baggage := []byte{}
 	atoms, err := atomlayer.Deserialize(baggage);
@@ -38,7 +28,7 @@ func TestSimpleEnter2(t *testing.T) {
 
 func TestSimpleReadData(t *testing.T) {
 	header := atomlayer.Atom{ 248, 5 }
-	r := Read(atomlayer.BaggageContext{header})
+	r := Read([]atomlayer.Atom{header})
 	entered := r.Enter()
 	assert.NotNil(t, entered)
 	assert.Equal(t, header, entered)
@@ -46,7 +36,7 @@ func TestSimpleReadData(t *testing.T) {
 	assert.Equal(t, 0, r.level)
 	assert.Nil(t, r.next)
 	assert.Empty(t, r.remaining)
-	assert.Empty(t, r.skipped)
+	assert.Empty(t, r.Skipped)
 	assert.Equal(t, []atomlayer.Atom{header}, r.currentPath)
 
 	assert.Nil(t, r.Enter())
@@ -64,7 +54,7 @@ func TestSimpleReadData(t *testing.T) {
 }
 
 func TestValidLevelJump(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{248, 5},
 		[]byte{0, 185, 124, 187, 14, 103, 240, 88, 153},
 		[]byte{240, 0},
@@ -72,15 +62,15 @@ func TestValidLevelJump(t *testing.T) {
 	}
 
 	r := Read(baggage)
-	assert.Nil(t, r.err)
+	assert.Nil(t, r.Err)
 
 	header := r.Enter()
 	assert.NotNil(t, header)
-	assert.Nil(t, r.err)
+	assert.Nil(t, r.Err)
 }
 
 func TestInvalidLevelJump(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{240, 0},
 		[]byte{0, 131, 154, 212, 173, 65, 53, 70, 55},
 		[]byte{248, 5},
@@ -88,36 +78,36 @@ func TestInvalidLevelJump(t *testing.T) {
 	}
 
 	r := Read(baggage)
-	assert.Nil(t, r.err)
+	assert.Nil(t, r.Err)
 
 	header := r.Enter()
 	assert.Nil(t, header)
-	assert.NotNil(t, r.err)
+	assert.NotNil(t, r.Err)
 }
 
 func TestInvalidHeaderAtom(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{240},
 		[]byte{0, 131, 154, 212, 173, 65, 53, 70, 55},
 	}
 
 	r := Read(baggage)
-	assert.Nil(t, r.err)
+	assert.Nil(t, r.Err)
 
 	header := r.Enter()
 	assert.Nil(t, header)
-	assert.NotNil(t, r.err)
+	assert.NotNil(t, r.Err)
 }
 
 func TestMultipleDataAtoms(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{0, 0},
 		[]byte{0, 1},
 		[]byte{0, 2},
 	}
 
 	r := Read(baggage)
-	assert.Nil(t, r.err)
+	assert.Nil(t, r.Err)
 
 	assert.NotNil(t, r.Next())
 	assert.NotNil(t, r.Next())
@@ -126,7 +116,7 @@ func TestMultipleDataAtoms(t *testing.T) {
 }
 
 func TestEnterSkipsBags(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{248, 3},
 		[]byte{0, 6},
 		[]byte{248, 5},
@@ -145,7 +135,7 @@ func TestEnterSkipsBags(t *testing.T) {
 }
 
 func TestSkippedAtomsSimple(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{248, 3},
 		[]byte{0, 6},
 		[]byte{248, 5},
@@ -155,15 +145,15 @@ func TestSkippedAtomsSimple(t *testing.T) {
 	r := Read(baggage)
 
 	assert.True(t, r.EnterIndexed(5))
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{0, 6}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{0, 6}}, r.Skipped)
 	r.Exit()
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{0, 6}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{0, 6}}, r.Skipped)
 	r.Exit()
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{0, 6}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{0, 6}}, r.Skipped)
 }
 
 func TestSkipNestedBags(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{248, 3},
 		[]byte{0, 7},
 		[]byte{0, 100},
@@ -177,17 +167,17 @@ func TestSkipNestedBags(t *testing.T) {
 
 	assert.True(t, r.EnterIndexed(5))
 	assert.Equal(t,
-		atomlayer.BaggageContext{[]byte{248, 3}, []byte{0, 7}, []byte{0, 100}, []byte{240, 0}, []byte{0, 6}},
-		r.skipped)
+		[]atomlayer.Atom{[]byte{248, 3}, []byte{0, 7}, []byte{0, 100}, []byte{240, 0}, []byte{0, 6}},
+		r.Skipped)
 	r.Exit()
 	r.Exit()
 	assert.Equal(t,
-		atomlayer.BaggageContext{[]byte{248, 3}, []byte{0, 7}, []byte{0, 100}, []byte{240, 0}, []byte{0, 6}},
-		r.skipped)
+		[]atomlayer.Atom{[]byte{248, 3}, []byte{0, 7}, []byte{0, 100}, []byte{240, 0}, []byte{0, 6}},
+		r.Skipped)
 }
 
 func TestSkippedAtomsPartial(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{248, 3},
 		[]byte{240, 0},
 		[]byte{0, 6},
@@ -198,14 +188,14 @@ func TestSkippedAtomsPartial(t *testing.T) {
 	assert.True(t, r.EnterIndexed(3))
 	r.Exit()
 
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.Skipped)
 	r.Exit()
 	r.Exit()
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.Skipped)
 }
 
 func TestSkippedAtomsDropsInitialDataAtoms(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{248, 3},
 		[]byte{0, 7},
 		[]byte{0, 100},
@@ -218,10 +208,10 @@ func TestSkippedAtomsDropsInitialDataAtoms(t *testing.T) {
 	assert.True(t, r.EnterIndexed(3))
 	r.Exit()
 
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.Skipped)
 	r.Exit()
 	r.Exit()
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.Skipped)
 }
 
 func header(level int, index uint64) atomlayer.Atom {
@@ -236,12 +226,12 @@ func data(bytes ...byte) atomlayer.Atom {
 	return append([]byte{0}, bytes...)
 }
 
-func atoms(atoms ...atomlayer.Atom) atomlayer.BaggageContext {
-	return atomlayer.BaggageContext(atoms)
+func atoms(atoms ...atomlayer.Atom) []atomlayer.Atom {
+	return []atomlayer.Atom(atoms)
 }
 
 func TestMultipleSkippedAtoms(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		header(0, 3),
 			data(7),
 			data(100),
@@ -274,7 +264,7 @@ func TestMultipleSkippedAtoms(t *testing.T) {
 		header(0,3),
 			header(1, 3),
 				data(15),
-	), r.skipped)
+	), r.Skipped)
 
 	assert.True(t, r.EnterIndexed(5))
 	assert.Equal(t, atoms(
@@ -285,7 +275,7 @@ func TestMultipleSkippedAtoms(t *testing.T) {
 			data(2),
 			header(1, 0),
 				data(20),
-	), r.skipped)
+	), r.Skipped)
 	r.Exit()
 	assert.Equal(t, atoms(
 		header(0,3),
@@ -298,7 +288,7 @@ func TestMultipleSkippedAtoms(t *testing.T) {
 		header(0, 5),
 			header(1, 1000000),
 				data(15),
-	), r.skipped)
+	), r.Skipped)
 
 	r.Close()
 	assert.Equal(t, atoms(
@@ -314,11 +304,11 @@ func TestMultipleSkippedAtoms(t *testing.T) {
 				data(15),
 		header(0, 10000001),
 			data(5,5,5,5,5),
-		), r.skipped)
+		), r.Skipped)
 }
 
 func TestFailedEnterSkipsSomeAtoms(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{248, 3},
 		[]byte{0, 7},
 		[]byte{248, 5},
@@ -328,13 +318,13 @@ func TestFailedEnterSkipsSomeAtoms(t *testing.T) {
 	r := Read(baggage)
 
 	assert.False(t, r.EnterIndexed(4))
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{0, 7}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{0, 7}}, r.Skipped)
 	assert.False(t, r.EnterIndexed(6))
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{0, 7}, []byte{248, 5}, []byte{0, 9}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{0, 7}, []byte{248, 5}, []byte{0, 9}}, r.Skipped)
 }
 
 func TestEnterKeyed(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		keyed(0, "hello"),
 		data(10),
 	}
@@ -347,7 +337,7 @@ func TestEnterKeyed(t *testing.T) {
 }
 
 func TestEnterSkips(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		header(0, 1),
 			data(7),
 		header(0, 2),
@@ -364,18 +354,18 @@ func TestEnterSkips(t *testing.T) {
 			data(7),
 		header(0, 2),
 			data(7),
-	), r.skipped)
+	), r.Skipped)
 	r.Exit()
 	assert.Equal(t, atoms(
 		header(0, 1),
 			data(7),
 		header(0, 2),
 			data(7),
-	), r.skipped)
+	), r.Skipped)
 }
 
 func TestEnterKeyedSkipsIndexed(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		header(0, 3),
 			data(7),
 		keyed(0, "hello"),
@@ -392,29 +382,34 @@ func TestEnterKeyedSkipsIndexed(t *testing.T) {
 			data(7),
 		keyed(0, "hello"),
 			data(10),
-	), r.skipped)
+	), r.Skipped)
 	r.Exit()
 	assert.Equal(t, atoms(
 		header(0, 3),
 			data(7),
 		keyed(0, "hello"),
 			data(10),
-	), r.skipped)
+	), r.Skipped)
 
 }
 
 func TestClose(t *testing.T) {
-	r := Read(atomlayer.BaggageContext{})
+	r := Read([]atomlayer.Atom{})
+	r.Close()
+}
+
+func TestClose2(t *testing.T) {
+	r := Open([]atomlayer.Atom{}, 2)
 	r.Close()
 }
 
 func TestCloseInBag(t *testing.T) {
-	r := Read(atomlayer.BaggageContext{})
+	r := Read([]atomlayer.Atom{})
 	r.Close()
 }
 
 func TestCloseSkipsAtoms(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		[]byte{248, 3},
 			[]byte{0, 7},
 			[]byte{0, 100},
@@ -429,15 +424,15 @@ func TestCloseSkipsAtoms(t *testing.T) {
 	assert.True(t, r.EnterIndexed(3))
 	r.Exit()
 
-	assert.Equal(t, atomlayer.BaggageContext{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.skipped)
+	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.Skipped)
 	r.Close()
 	assert.Equal(t,
-		atomlayer.BaggageContext{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}, []byte{248, 5}, []byte{0, 10}},
-		r.skipped)
+		[]atomlayer.Atom{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}, []byte{248, 5}, []byte{0, 10}},
+		r.Skipped)
 }
 
 func TestTrimMarker(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		header(0, 3),
 			data(7),
 			[]byte{},
@@ -449,29 +444,29 @@ func TestTrimMarker(t *testing.T) {
 	r := Read(baggage)
 
 	assert.True(t, r.EnterIndexed(3))
-	assert.False(t, r.overflowed)
+	assert.False(t, r.Overflowed)
 
 	assert.Equal(t, []byte{7}, r.Next())
-	assert.False(t, r.overflowed)
+	assert.False(t, r.Overflowed)
 
 	assert.Equal(t, []byte{10}, r.Next())
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 
 	r.Exit()
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 
 	assert.True(t, r.EnterKeyed([]byte("hello")))
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 
 	assert.Equal(t, []byte{15}, r.Next())
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 
 	r.Close()
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 }
 
 func TestTrimMarker2(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		header(0, 3),
 			data(7),
 			[]byte{},
@@ -482,25 +477,25 @@ func TestTrimMarker2(t *testing.T) {
 
 	r := Read(baggage)
 
-	assert.False(t ,r.overflowed)
+	assert.False(t ,r.Overflowed)
 	assert.True(t, r.EnterKeyed([]byte("hello")))
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 	assert.Equal(t, atoms(
 		header(0, 3),
 			data(7),
 			[]byte{},
 			data(10),
-	), r.skipped)
+	), r.Skipped)
 
 	assert.Equal(t, []byte{15}, r.Next())
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 
 	r.Close()
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 }
 
 func TestDropDuplicateTrimMarkers(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		header(0, 3),
 			data(7),
 			[]byte{},
@@ -514,21 +509,21 @@ func TestDropDuplicateTrimMarkers(t *testing.T) {
 
 	r := Read(baggage)
 
-	assert.False(t ,r.overflowed)
+	assert.False(t ,r.Overflowed)
 	assert.True(t, r.EnterKeyed([]byte("hello")))
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 	assert.Equal(t, atoms(
 		header(0, 3),
 		data(7),
 		[]byte{},
 		data(10),
-	), r.skipped)
+	), r.Skipped)
 
 	assert.Equal(t, []byte{15}, r.Next())
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 
 	r.Close()
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 }
 
 func TestSimpleXTraceBaggage(t *testing.T) {
@@ -686,76 +681,8 @@ func TestSimpleXTraceBaggage2(t *testing.T) {
 	assert.Nil(t, reader.Enter())
 }
 
-func TestFind(t *testing.T) {
-	baggage := atoms(
-		header(0, 0),
-			data(5),
-		header(0, 2),
-			data(8),
-			[]byte{},
-		header(0, 4),
-			data(8),
-	)
-
-	found, overflowed, i := find(baggage, 0, header(0, 0))
-
-	assert.True(t, found)
-	assert.False(t, overflowed)
-	assert.Equal(t, 0, i)
-
-	found, overflowed, i = find(baggage, i+1, header(0, 0))
-	assert.False(t, found)
-	assert.False(t, overflowed)
-	assert.Equal(t, 2, i)
-
-
-	found, overflowed, i = find(baggage, 0, header(0, 1))
-
-	assert.False(t, found)
-	assert.False(t, overflowed)
-	assert.Equal(t, 2, i)
-
-
-	found, overflowed, i = find(baggage, 0, header(0, 2))
-
-	assert.True(t, found)
-	assert.False(t, overflowed)
-	assert.Equal(t, 2, i)
-
-	found, overflowed, i = find(baggage, i+1, header(0, 2))
-	assert.False(t, found)
-	assert.True(t, overflowed)
-	assert.Equal(t, 5, i)
-
-
-	found, overflowed, i = find(baggage, 0, header(0, 3))
-
-	assert.False(t, found)
-	assert.True(t, overflowed)
-	assert.Equal(t, 5, i)
-
-
-	found, overflowed, i = find(baggage, 0, header(0, 4))
-
-	assert.True(t, found)
-	assert.True(t, overflowed)
-	assert.Equal(t, 5, i)
-
-	found, overflowed, i = find(baggage, i+1, header(0, 4))
-	assert.False(t, found)
-	assert.False(t, overflowed)
-	assert.Equal(t, 7, i)
-
-
-	found, overflowed, i = find(baggage, 0, header(0, 5))
-
-	assert.False(t, found)
-	assert.True(t, overflowed)
-	assert.Equal(t, 7, i)
-}
-
 func TestOpenBag(t *testing.T) {
-	baggage := atomlayer.BaggageContext{
+	baggage := []atomlayer.Atom{
 		header(0, 3),
 			data(7),
 			data(100),
@@ -780,9 +707,9 @@ func TestOpenBag(t *testing.T) {
 	r := Open(baggage, 4)
 
 	assert.Equal(t, 0, r.level)
-	assert.Equal(t, 0, len(r.skipped))
+	assert.Equal(t, 0, len(r.Skipped))
 	assert.Equal(t, 0, len(r.currentPath))
-	assert.False(t, r.overflowed)
+	assert.False(t, r.Overflowed)
 
 	assert.Equal(t, []byte{2}, r.Next())
 	assert.True(t, r.EnterIndexed(0))
@@ -808,10 +735,10 @@ func TestOpenBagOverflow(t *testing.T) {
 	)
 
 	r := Open(baggage, 3)
-	assert.True(t, r.overflowed)
+	assert.True(t, r.Overflowed)
 
 	r = Open(baggage, 0)
-	assert.False(t, r.overflowed)
+	assert.False(t, r.Overflowed)
 
 	baggage = atoms(
 		header(0, 0),
@@ -823,8 +750,8 @@ func TestOpenBagOverflow(t *testing.T) {
 	)
 
 	r = Open(baggage, 3)
-	assert.False(t, r.overflowed)
+	assert.False(t, r.Overflowed)
 
 	r = Open(baggage, 0)
-	assert.False(t, r.overflowed)
+	assert.False(t, r.Overflowed)
 }

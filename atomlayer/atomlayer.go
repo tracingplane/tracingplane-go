@@ -3,24 +3,23 @@ package atomlayer
 import (
 	"bytes"
 	"github.com/golang/protobuf/proto"
-	"encoding/base64"
 	"fmt"
 )
 
-// Provides the base declaration of BaggageContext and Atoms.  BaggageContext is just a slice of atoms.
-// Also provides implementation of the five fundamental propagation primitives:
+// The atomlayer is the lowest-level representation used by the tracing plane.  It represents a BaggageContext using
+// atoms -- an Atom is a slice of bytes, and a BaggageContext as defined by the atomlayer is a slice of Atoms.  The
+// AtomLayer provides an implementation of the five propagation primitives:
 //  * Branch -- duplicate a context because execution is branching
 //  * Merge -- merge two contexts from merging execution branches
 //  * Serialize / Deserialize --
 //  * Trim -- impose size restrictions on context
 
 type Atom []byte
-type BaggageContext []Atom
 
 // Merges two BaggageContexts by lexicographically comparing their atoms
-func Merge(a, b BaggageContext) BaggageContext {
+func Merge(a, b []Atom) []Atom {
 	if a == nil && b == nil { return nil }
-	merged := BaggageContext(make([]Atom, 0, len(a)+len(b)))
+	merged := make([]Atom, 0, len(a)+len(b))
 	i, j := 0, 0
 	for i < len(a) && j < len(b) {
 		switch bytes.Compare(a[i], b[j]) {
@@ -35,12 +34,12 @@ func Merge(a, b BaggageContext) BaggageContext {
 }
 
 // Duplicates a BaggageContext
-func Branch(a BaggageContext) BaggageContext {
-	return append(BaggageContext(nil), a...)
+func Branch(a []Atom) (b []Atom) {
+	return append(b, a...)
 }
 
 // Returns the serialized size in bytes of this atom array.
-func (atoms BaggageContext) SerializedSize() (size int) {
+func SerializedSize(atoms []Atom) (size int) {
 	for _, atom := range atoms { size += atom.serializedSize() }
 	return
 }
@@ -51,9 +50,9 @@ func (atom Atom) serializedSize() int {
 }
 
 // Serializes the baggage context by varint-prefixing each atom.]
-func Serialize(atoms BaggageContext) []byte {
-	if atoms == nil { return nil }
-	length := atoms.SerializedSize()
+func Serialize(atoms []Atom) []byte {
+	if len(atoms) == 0 { return nil }
+	length := SerializedSize(atoms)
 	serializedAtoms := make([]byte, 0, length)
 	for _, atom := range atoms {
 		serializedAtoms = append(serializedAtoms, proto.EncodeVarint(uint64(len(atom)))...)
@@ -63,7 +62,7 @@ func Serialize(atoms BaggageContext) []byte {
 }
 
 // Deserializes a baggage context from bytes
-func Deserialize(bytes []byte) (atoms BaggageContext, err error) {
+func Deserialize(bytes []byte) (atoms []Atom, err error) {
 	pos := 0
 	for len(bytes) > 0 {
 		x, n := proto.DecodeVarint(bytes)
@@ -81,44 +80,30 @@ func Deserialize(bytes []byte) (atoms BaggageContext, err error) {
 	return
 }
 
-// Serializes the provided BaggageContext then base64 encodes it into a string
-func EncodeBase64(ctx BaggageContext) string {
-	return base64.StdEncoding.EncodeToString(Serialize(ctx))
-}
-
-// Decodes and deserializes a BaggageContext from the provided base64-encoded string
-func DecodeBase64(encoded string) (BaggageContext, error) {
-	bytes, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return nil, err
-	}
-	return Deserialize(bytes)
-}
-
-var trimMarker = Atom(make([]byte, 0, 0)) // Special zero-length atom used to indicate trim
+var TrimMarker = Atom(make([]byte, 0, 0)) // Special zero-length atom used to indicate trim
 
 func IsTrimMarker(a Atom) bool {
-	return bytes.Equal(trimMarker, a)
+	return bytes.Equal(TrimMarker, a)
 }
 
 // Drop atoms from the BaggageContext so that it fits into the specified number of bytes
-func Trim(atoms BaggageContext, maxSize int) BaggageContext {
-	switch trimAt := atoms.indexForTrim(maxSize); {
+func Trim(atoms []Atom, maxSize int) []Atom {
+	switch trimAt := indexForTrim(atoms, maxSize); {
 	case trimAt == len(atoms): return atoms
-	default: return append(atoms[:trimAt], trimMarker)
+	default: return append(atoms[:trimAt], TrimMarker)
 	}
 }
 
 // Calculates the index at which to trim the baggage to fit in the specified size
-func (baggage BaggageContext) indexForTrim(size int) int {
-	for i, atom := range baggage {
+func indexForTrim(atoms []Atom, size int) int {
+	for i, atom := range atoms {
 		switch atomSize := atom.serializedSize(); {
 		case atomSize < size: size -= atomSize;
 		case atomSize > size: return i
-		case i == len(baggage)-1: size -= atomSize;
+		case i == len(atoms)-1: size -= atomSize;
 		default: return i
 		}
 	}
-	return len(baggage)
+	return len(atoms)
 }
 
