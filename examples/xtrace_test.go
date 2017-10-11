@@ -168,7 +168,7 @@ func TestUpdateXTraceParents(t *testing.T) {
 
 }
 
-func TestUpdateXTrace(t *testing.T) {
+func TestXTraceUnprocessed(t *testing.T) {
 	var baggage tracingplane.BaggageContext
 	baggage.Atoms = atoms(
 		header(0, 3),
@@ -176,13 +176,50 @@ func TestUpdateXTrace(t *testing.T) {
 		header(0, 5),
 			header(1, 0),
 				data(143, 189, 154, 1, 65, 170, 219, 47),
-		header(1, 1),
-			data(242, 64, 253, 113, 224, 239, 96, 55),
-			data(2, 62, 33, 56, 120, 22, 229, 128),
-			data(125, 152, 88, 29, 177, 134, 140, 248),
-		header(1, 3),
-			data(3),
+			header(1, 1),
+				data(2, 62, 33, 56, 120, 22, 229, 128),
+				data(125, 152, 88, 29, 177, 134, 140, 248),
+				data(242, 64, 253, 113, 224, 239, 96, 55),
+			header(1, 3),
+				data(3),
 		header(0, 10),
 			data(100),
 	)
+
+	xtrace := XTraceMetadata{}
+	err := baggage.ReadBag(5, &xtrace)
+
+	assert.Nil(t, err)
+	expectUnprocessed := atoms(
+		header(1, 3),
+		data(3),
+	)
+	assert.Equal(t, expectUnprocessed, xtrace.GetUnprocessedAtoms())
+
+	baggage.Drop(5)
+	expectBaggage := atoms(
+		header(0,3),
+			data(5),
+		header(0,10),
+			data(100),
+	)
+	assert.Equal(t, expectBaggage, baggage.Atoms)
+
+	baggage.Set(7, &xtrace)
+	expect := atoms(
+		header(0, 3),
+			data(5),
+		header(0, 7),
+			header(1, 0),
+				data(143, 189, 154, 1, 65, 170, 219, 47),
+			header(1, 1),
+				data(2, 62, 33, 56, 120, 22, 229, 128),
+				data(125, 152, 88, 29, 177, 134, 140, 248),
+				data(242, 64, 253, 113, 224, 239, 96, 55),
+			header(1, 3),
+				data(3),
+		header(0, 10),
+			data(100),
+	)
+	assert.Equal(t, expect, baggage.Atoms)
 }

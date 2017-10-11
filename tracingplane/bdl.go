@@ -6,7 +6,8 @@ import (
 	"github.com/tracingplane/tracingplane-go/atomlayer"
 )
 
-// BDL methods for reading and writing from and to BaggageContexts
+// This file contains extra methods for the BaggageContext structs that are used by BDL-generated code to read and
+// write atoms.
 
 // Read the specified bag index into the provided bag object
 func (baggage *BaggageContext) ReadBag(bagIndex uint64, bag bdl.Bag) error {
@@ -29,7 +30,7 @@ func (baggage *BaggageContext) Set(bagIndex uint64, bag bdl.Bag) error {
 	// Write the new bag
 	writer := baggageprotocol.WriteBag(bagIndex)
 	bag.Write(writer)
-	// TODO: merge back in unprocessed atoms
+	writer.AddUnprocessedAtoms(bag.GetUnprocessedAtoms())
 	newAtoms, err := writer.Atoms()
 
 	// Merge it back in

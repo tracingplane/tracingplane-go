@@ -8,28 +8,31 @@ import (
 )
 
 type Writer struct {
+	finalized	[]atomlayer.Atom
 	atoms		[]atomlayer.Atom
 	prev		atomlayer.Atom		// Previous header
+	basePath	[]atomlayer.Atom
 	currentPath []atomlayer.Atom
 	level 		int
 	err 		error
 	overflowed 	bool
 }
 
-var emptyAtom = []byte{}
-
 func NewWriter() *Writer {
-	var w Writer
-	w.level = -1
-	w.prev = emptyAtom
-	return &w
+	return write()
 }
 
 // Writes to a specific bag
 func WriteBag(bagIndex uint64) *Writer {
+	return write(MakeIndexedHeader(0, bagIndex))
+}
+
+// Returns a writer that writes data starting at the provided path
+func write(basePath ...atomlayer.Atom) *Writer {
 	var w Writer
-	w.atoms = append(w.atoms, MakeIndexedHeader(0, bagIndex))
-	w.prev = emptyAtom
+	w.level = len(basePath) - 1
+	w.basePath = basePath
+	w.prev = nil
 	return &w
 }
 
@@ -50,7 +53,7 @@ func (w *Writer) enter(header atomlayer.Atom) {
 
 	// Always write the header, even if it's in an erroneous order
 	w.atoms = append(w.atoms, header)
-	w.prev = emptyAtom
+	w.prev = nil
 	w.currentPath = append(w.currentPath, header)
 	w.level++
 }
@@ -67,7 +70,6 @@ func (w *Writer) Exit() {
 			w.atoms = w.atoms[:len(w.atoms)-1]
 		}
 	}
-
 }
 
 func (w *Writer) Write(data []byte) {
@@ -86,12 +88,17 @@ func (w *Writer) WriteSorted(datas ...[]byte) {
 func (w *Writer) MarkOverflow() {
 	if !w.overflowed {
 		w.overflowed = true
-		w.atoms = append(w.atoms, emptyAtom)
+		w.atoms = append(w.atoms, atomlayer.TrimMarker)
 	}
 }
 
+func (w *Writer) AddUnprocessedAtoms(atoms []atomlayer.Atom) {
+	w.finalized = atomlayer.Merge(w.finalized, atoms)
+}
+
 func (w *Writer) Atoms() ([]atomlayer.Atom, error) {
-	return w.atoms, w.err
+	atoms := make([]atomlayer.Atom, 0, len(w.basePath) + len(w.atoms) + len(w.finalized))
+	return append(append(atoms, w.basePath...), atomlayer.Merge(w.atoms, w.finalized)...), w.err
 }
 
 func (w *Writer) seterror(err error) error {

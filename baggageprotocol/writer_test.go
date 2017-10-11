@@ -181,3 +181,200 @@ func TestWriteOverflow(t *testing.T) {
 	)
 	assert.Equal(t, expect, as)
 }
+
+func TestWriteNothingSorted(t *testing.T) {
+	w := NewWriter()
+
+	w.Enter(2)
+	w.WriteSorted()
+	w.Exit()
+
+	as, err := w.Atoms()
+
+	assert.Nil(t, err)
+	assert.Empty(t, as)
+}
+
+func TestWriteSorted1(t *testing.T) {
+	w := NewWriter()
+
+	w.Enter(2)
+	w.WriteSorted([]byte{1}, []byte{2})
+	w.Exit()
+
+	as, err := w.Atoms()
+
+	assert.Nil(t, err)
+	expect := atoms(
+		header(0,2),
+			data(1),
+			data(2),
+	)
+	assert.Equal(t, expect, as)
+}
+
+func TestWriteSorted2(t *testing.T) {
+	w := NewWriter()
+
+	w.Enter(2)
+	w.WriteSorted([]byte{2}, []byte{1})
+	w.Exit()
+
+	as, err := w.Atoms()
+
+	assert.Nil(t, err)
+	expect := atoms(
+		header(0,2),
+			data(1),
+			data(2),
+	)
+	assert.Equal(t, expect, as)
+}
+
+func TestWriteSorted3(t *testing.T) {
+	w := NewWriter()
+
+	w.Enter(2)
+	w.WriteSorted([]byte{100}, []byte{}, []byte{5, 200})
+	w.Exit()
+
+	as, err := w.Atoms()
+
+	assert.Nil(t, err)
+	expect := atoms(
+		header(0,2),
+			data(),
+			data(5, 200),
+			data(100),
+	)
+	assert.Equal(t, expect, as)
+}
+
+func TestWriteUnsorted(t *testing.T) {
+	w := NewWriter()
+
+	w.Enter(2)
+	w.Write([]byte{2})
+	w.Write([]byte{1})
+	w.WriteSorted([]byte{4}, []byte{3})
+	w.Exit()
+
+	as, err := w.Atoms()
+
+	assert.Nil(t, err)
+	expect := atoms(
+		header(0,2),
+			data(2),
+			data(1),
+			data(3),
+			data(4),
+	)
+	assert.Equal(t, expect, as)
+}
+
+func TestUnprocessedAtoms(t *testing.T) {
+	w := NewWriter()
+
+	w.Enter(2)
+	w.Enter(10)
+	w.Enter(4)
+	w.Enter(5)
+	w.Write([]byte{2})
+	w.Write([]byte{1})
+	w.Exit()
+	w.Exit()
+	w.Exit()
+	w.Exit()
+
+	as, err := w.Atoms()
+
+	assert.Nil(t, err)
+	expect := atoms(
+		header(0,2),
+			header(1,10),
+				header(2,4),
+					header(3,5),
+						data(2),
+						data(1),
+	)
+	assert.Equal(t, expect, as)
+
+	w.AddUnprocessedAtoms(atoms(
+		header(0, 2),
+			header(1, 10),
+				header(2, 7),
+					header(3, 5),
+						data(2),
+	))
+
+
+	as, err = w.Atoms()
+
+	assert.Nil(t, err)
+	expect = atoms(
+		header(0,2),
+			header(1,10),
+				header(2,4),
+					header(3,5),
+						data(2),
+						data(1),
+				header(2,7),
+					header(3,5),
+						data(2),
+	)
+	assert.Equal(t, expect, as)
+
+}
+
+
+
+func TestUnprocessedAtomsInBag(t *testing.T) {
+	w := WriteBag(2)
+
+	w.Enter(10)
+	w.Enter(4)
+	w.Enter(5)
+	w.Write([]byte{2})
+	w.Write([]byte{1})
+	w.Exit()
+	w.Exit()
+	w.Exit()
+
+	as, err := w.Atoms()
+
+	assert.Nil(t, err)
+	expect := atoms(
+		header(0,2),
+		header(1,10),
+		header(2,4),
+		header(3,5),
+		data(2),
+		data(1),
+	)
+	assert.Equal(t, expect, as)
+
+	w.AddUnprocessedAtoms(atoms(
+		header(1, 10),
+		header(2, 7),
+		header(3, 5),
+		data(2),
+	))
+
+
+	as, err = w.Atoms()
+
+	assert.Nil(t, err)
+	expect = atoms(
+		header(0,2),
+		header(1,10),
+		header(2,4),
+		header(3,5),
+		data(2),
+		data(1),
+		header(2,7),
+		header(3,5),
+		data(2),
+	)
+	assert.Equal(t, expect, as)
+
+}
