@@ -9,19 +9,19 @@ import (
 func TestEmptyBaggage(t *testing.T) {
 	var a BaggageContext
 
-	assert.Empty(t, a.atoms)
+	assert.Empty(t, a.Atoms)
 	assert.Nil(t, a.componentId)
 
 	var b BaggageContext
 
 	c := a.MergeWith(b)
 
-	assert.Empty(t, c.atoms)
+	assert.Empty(t, c.Atoms)
 	assert.Nil(t, c.componentId)
 
 	d := c.Branch()
 
-	assert.Empty(t, d.atoms)
+	assert.Empty(t, d.Atoms)
 	assert.Nil(t, d.componentId)
 }
 

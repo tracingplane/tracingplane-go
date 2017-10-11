@@ -15,8 +15,8 @@ import (
 
 // Provides the base declaration of BaggageContext which internally uses the atom layer's atom representation
 type BaggageContext struct {
-	atoms []atomlayer.Atom				// The underlying atoms of this baggagecontext
-	Context context.Context				// A golang context carried with this baggagecontext.  Propagates through calls
+	Atoms   []atomlayer.Atom // The underlying Atoms of this baggagecontext
+	Context context.Context  // A golang context carried with this baggagecontext.  Propagates through calls
 										// to branch, but not with all merge calls.
 	componentId **uint32				// A randomly generated ID for this component; only propagates to one side of
 										// branch calls.
@@ -27,7 +27,7 @@ type BaggageContext struct {
 // The returned BaggageContext will NOT contain anything from B's golang context -- only A's
 func (a BaggageContext) MergeWith(bs ...BaggageContext) BaggageContext {
 	for _, b := range(bs) {
-		a.atoms = atomlayer.Merge(a.atoms, b.atoms)
+		a.Atoms = atomlayer.Merge(a.Atoms, b.Atoms)
 		if !a.hasComponentID() {
 			a.componentId = b.componentId
 			// TODO: If multiple baggages have component IDs, keep all of them for later reuse?
@@ -47,25 +47,25 @@ func (a BaggageContext) MergeWith(bs ...BaggageContext) BaggageContext {
 
 // Derives a new BaggageContext instance that will be passed, for example, to a different goroutine
 func (a BaggageContext) Branch() (c BaggageContext) {
-	a.atoms = atomlayer.Branch(a.atoms)
+	a.Atoms = atomlayer.Branch(a.Atoms)
 	a.componentId = nil
 	return a
 }
 
 // Returns the serialized size in bytes of this BaggageContext
 func (baggage BaggageContext) SerializedSize() int {
-	return atomlayer.SerializedSize(baggage.atoms)
+	return atomlayer.SerializedSize(baggage.Atoms)
 }
 
-// Serializes the atoms of the BaggageContext.  The serialized representation doesn't include anything from the golang
+// Serializes the Atoms of the BaggageContext.  The serialized representation doesn't include anything from the golang
 // context, or the component ID
 func Serialize(baggage BaggageContext) []byte {
-	return atomlayer.Serialize(baggage.atoms)
+	return atomlayer.Serialize(baggage.Atoms)
 }
 
 // Deserializes a BaggageContext from bytes
 func Deserialize(bytes []byte) (baggage BaggageContext, err error) {
-	baggage.atoms, err = atomlayer.Deserialize(bytes)
+	baggage.Atoms, err = atomlayer.Deserialize(bytes)
 	return
 }
 
@@ -84,9 +84,9 @@ func DecodeBase64(encoded string) (BaggageContext, error) {
 	}
 }
 
-// Drop atoms from the BaggageContext so that it fits into the specified number of bytes
+// Drop Atoms from the BaggageContext so that it fits into the specified number of bytes
 func Trim(baggage BaggageContext, maxSize int) BaggageContext {
-	baggage.atoms = atomlayer.Trim(baggage.atoms, maxSize)
+	baggage.Atoms = atomlayer.Trim(baggage.Atoms, maxSize)
 	return baggage
 }
 

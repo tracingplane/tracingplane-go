@@ -9,6 +9,23 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
+
+func header(level int, index uint64) atomlayer.Atom {
+	return MakeIndexedHeader(level, index)
+}
+
+func keyed(level int, key string) atomlayer.Atom {
+	return MakeKeyedHeader(level, []byte(key))
+}
+
+func data(bytes ...byte) atomlayer.Atom {
+	return append([]byte{0}, bytes...)
+}
+
+func atoms(atoms ...atomlayer.Atom) []atomlayer.Atom {
+	return []atomlayer.Atom(atoms)
+}
+
 func TestSimpleEnter1(t *testing.T) {
 	baggage := []byte{}
 	atoms, err := atomlayer.Deserialize(baggage);
@@ -212,22 +229,6 @@ func TestSkippedAtomsDropsInitialDataAtoms(t *testing.T) {
 	r.Exit()
 	r.Exit()
 	assert.Equal(t, []atomlayer.Atom{[]byte{248, 3}, []byte{240, 0}, []byte{0, 6}}, r.Skipped)
-}
-
-func header(level int, index uint64) atomlayer.Atom {
-	return MakeIndexedHeader(level, index)
-}
-
-func keyed(level int, key string) atomlayer.Atom {
-	return MakeKeyedHeader(level, []byte(key))
-}
-
-func data(bytes ...byte) atomlayer.Atom {
-	return append([]byte{0}, bytes...)
-}
-
-func atoms(atoms ...atomlayer.Atom) []atomlayer.Atom {
-	return []atomlayer.Atom(atoms)
 }
 
 func TestMultipleSkippedAtoms(t *testing.T) {

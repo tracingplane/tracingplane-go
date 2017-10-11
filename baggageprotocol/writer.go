@@ -18,17 +18,19 @@ type Writer struct {
 
 var emptyAtom = []byte{}
 
-func NewWriter() (w Writer) {
+func NewWriter() *Writer {
+	var w Writer
 	w.level = -1
 	w.prev = emptyAtom
-	return
+	return &w
 }
 
 // Writes to a specific bag
-func WriteBag(bagIndex uint64) (w Writer) {
+func WriteBag(bagIndex uint64) *Writer {
+	var w Writer
 	w.atoms = append(w.atoms, MakeIndexedHeader(0, bagIndex))
 	w.prev = emptyAtom
-	return
+	return &w
 }
 
 func (w *Writer) Enter(bagIndex uint64) {

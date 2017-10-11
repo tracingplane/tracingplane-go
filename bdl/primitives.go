@@ -27,6 +27,27 @@ func WriteLexVarUint64(v uint64) []byte {
 	return baggageprotocol.EncodeUnsignedLexVarint(v)
 }
 
+func ReadLexVarInt32(bytes []byte) *int32 {
+	value, length := baggageprotocol.DecodeSignedLexVarint(bytes)
+	if length == 0 || value > math.MaxInt32 || value < math.MinInt32 { return nil }
+	v := int32(value)
+	return &v
+}
+
+func WriteLexVarInt32(v int32) []byte {
+	return baggageprotocol.EncodeSignedLexVarint(int64(v))
+}
+
+func ReadLexVarInt64(bytes []byte) *int64 {
+	value, length := baggageprotocol.DecodeSignedLexVarint(bytes)
+	if length == 0 { return nil }
+	return &value
+}
+
+func WriteLexVarInt64(v int64) []byte {
+	return baggageprotocol.EncodeSignedLexVarint(v)
+}
+
 func ReadUint32Fixed(bytes []byte) *uint32 {
 	if len(bytes) != 4 { return nil }
 	value := binary.BigEndian.Uint32(bytes)
@@ -39,6 +60,16 @@ func WriteUint32Fixed(v uint32) []byte {
 	return bytes
 }
 
+func ReadInt32Fixed(bytes []byte) *int32 {
+	if len(bytes) != 4 { return nil }
+	v := int32(binary.BigEndian.Uint32(bytes))
+	return &v
+}
+
+func WriteInt32Fixed(v int32) []byte {
+	return WriteUint32Fixed(uint32(v))
+}
+
 func ReadUint64Fixed(bytes []byte) *uint64 {
 	if len(bytes) != 8 { return nil }
 	value := binary.BigEndian.Uint64(bytes)
@@ -49,4 +80,14 @@ func WriteUint64Fixed(v uint64) []byte {
 	bytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(bytes, v)
 	return bytes
+}
+
+func ReadInt64Fixed(bytes []byte) *int64 {
+	if len(bytes) != 8 { return nil }
+	value := int64(binary.BigEndian.Uint64(bytes))
+	return &value
+}
+
+func WriteInt64Fixed(v int64) []byte {
+	return WriteUint64Fixed(uint64(v))
 }

@@ -8,6 +8,23 @@ import (
 	"github.com/tracingplane/tracingplane-go/atomlayer"
 )
 
+
+func header(level int, index uint64) atomlayer.Atom {
+	return baggageprotocol.MakeIndexedHeader(level, index)
+}
+
+func keyed(level int, key string) atomlayer.Atom {
+	return baggageprotocol.MakeKeyedHeader(level, []byte(key))
+}
+
+func data(bytes ...byte) atomlayer.Atom {
+	return append([]byte{0}, bytes...)
+}
+
+func atoms(atoms ...atomlayer.Atom) []atomlayer.Atom {
+	return []atomlayer.Atom(atoms)
+}
+
 func TestXTrace(t *testing.T) {
 	var xtrace XTraceMetadata
 
@@ -26,26 +43,28 @@ func TestXTrace(t *testing.T) {
 }
 
 func TestXTrace2(t *testing.T) {
-	bytes := []byte{	2, 248, 5,
-							2, 240, 0,
-								9, 0, 143, 189, 154, 1, 65, 170, 219, 47,
-							2, 240, 1,
-								9, 0, 242, 64, 253, 113, 224, 239, 96, 55,
-								9, 0, 2, 62, 33, 56, 120, 22, 229, 128,
-								9, 0, 125, 152, 88, 29, 177, 134, 140, 248,
-							2, 240, 3,
-								2, 0, 3 }
-
-	baggage, err := tracingplane.Deserialize(bytes)
-
-	assert.Nil(t, err)
+	var err error
+	var baggage tracingplane.BaggageContext
+	baggage.Atoms = atoms(
+		header(0, 3),
+			data(5),
+		header(0, 5),
+			header(1, 0),
+				data(143, 189, 154, 1, 65, 170, 219, 47),
+			header(1, 1),
+				data(242, 64, 253, 113, 224, 239, 96, 55),
+				data(2, 62, 33, 56, 120, 22, 229, 128),
+				data(125, 152, 88, 29, 177, 134, 140, 248),
+			header(1, 3),
+				data(3),
+	)
 
 	var xtrace XTraceMetadata
 	err = baggage.ReadBag(5, &xtrace)
 	assert.Nil(t, err)
 
 	assert.NotNil(t, xtrace.TaskID)
-	assert.Equal(t, int64(-8089140025500181713), xtrace.TaskID)
+	assert.Equal(t, int64(-8089140025500181713), *xtrace.TaskID)
 
 	assert.Equal(t, len(xtrace.ParentEventIDs), 3)
 	expectParentIds := make(map[int64](struct{}))

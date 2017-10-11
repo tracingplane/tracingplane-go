@@ -10,7 +10,7 @@ import (
 
 // Read the specified bag index into the provided bag object
 func (baggage *BaggageContext) ReadBag(bagIndex uint64, bag bdl.Bag) error {
-	reader := baggageprotocol.Open(baggage.atoms, bagIndex)
+	reader := baggageprotocol.Open(baggage.Atoms, bagIndex)
 	bag.Read(reader)
 	reader.Close()
 	bag.SetUnprocessedAtoms(reader.Skipped)
@@ -19,12 +19,12 @@ func (baggage *BaggageContext) ReadBag(bagIndex uint64, bag bdl.Bag) error {
 
 // Drops the specified bag index from the provided baggage object
 func (baggage *BaggageContext) Drop(bagIndex uint64) {
-	baggage.atoms = baggageprotocol.Drop(baggage.atoms, bagIndex, baggageprotocol.PushMarkerDown)
+	baggage.Atoms = baggageprotocol.Drop(baggage.Atoms, bagIndex, baggageprotocol.PushMarkerDown)
 }
 
 func (baggage *BaggageContext) WriteBag(bagIndex uint64, bag bdl.Bag) error {
 	// Remove the bag from the baggage
-	baggage.atoms = baggageprotocol.Drop(baggage.atoms, bagIndex, baggageprotocol.DropMarker)
+	baggage.Atoms = baggageprotocol.Drop(baggage.Atoms, bagIndex, baggageprotocol.DropMarker)
 
 	// Write the new bag
 	writer := baggageprotocol.WriteBag(bagIndex)
@@ -32,6 +32,6 @@ func (baggage *BaggageContext) WriteBag(bagIndex uint64, bag bdl.Bag) error {
 	newAtoms, err := writer.Atoms()
 
 	// Merge it back in
-	baggage.atoms = atomlayer.Merge(baggage.atoms, newAtoms)
+	baggage.Atoms = atomlayer.Merge(baggage.Atoms, newAtoms)
 	return err
 }

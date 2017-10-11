@@ -16,15 +16,17 @@ type Reader struct {
 	Err        error
 }
 
-func Read(baggage []atomlayer.Atom) (r Reader) {
+func Read(baggage []atomlayer.Atom) *Reader {
+	var r Reader
 	r.remaining = baggage
 	r.level = -1
 	r.advance()
-	return
+	return &r
 }
 
 // Reads data from the specified bag, only tracking skipped atoms from this bag.
-func Open(baggage []atomlayer.Atom, bagIndex uint64) (r Reader) {
+func Open(baggage []atomlayer.Atom, bagIndex uint64) *Reader {
+	var r Reader
 	target := MakeIndexedHeader(0, bagIndex)
 	exists, overflowed, i := find(baggage, 0, target)
 
@@ -37,7 +39,7 @@ func Open(baggage []atomlayer.Atom, bagIndex uint64) (r Reader) {
 	}
 
 	r.advance()
-	return
+	return &r
 }
 
 // Closes the Reader, treating all remaining atoms as skipped
