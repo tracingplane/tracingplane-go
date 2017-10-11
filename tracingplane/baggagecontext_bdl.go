@@ -22,13 +22,14 @@ func (baggage *BaggageContext) Drop(bagIndex uint64) {
 	baggage.Atoms = baggageprotocol.Drop(baggage.Atoms, bagIndex, baggageprotocol.PushMarkerDown)
 }
 
-func (baggage *BaggageContext) WriteBag(bagIndex uint64, bag bdl.Bag) error {
+func (baggage *BaggageContext) Set(bagIndex uint64, bag bdl.Bag) error {
 	// Remove the bag from the baggage
 	baggage.Atoms = baggageprotocol.Drop(baggage.Atoms, bagIndex, baggageprotocol.DropMarker)
 
 	// Write the new bag
 	writer := baggageprotocol.WriteBag(bagIndex)
 	bag.Write(writer)
+	// TODO: merge back in unprocessed atoms
 	newAtoms, err := writer.Atoms()
 
 	// Merge it back in

@@ -28,7 +28,7 @@ func atoms(atoms ...atomlayer.Atom) []atomlayer.Atom {
 func TestXTrace(t *testing.T) {
 	var xtrace XTraceMetadata
 
-	assert.Empty(t, xtrace.ParentEventIDs)
+	assert.Empty(t, xtrace.parentEventIDs)
 
 
 	var baggage tracingplane.BaggageContext
@@ -38,7 +38,7 @@ func TestXTrace(t *testing.T) {
 
 	baggage.Drop(5)
 
-	baggage.WriteBag(5, &xtrace)
+	baggage.Set(5, &xtrace)
 
 }
 
@@ -63,18 +63,126 @@ func TestXTrace2(t *testing.T) {
 	err = baggage.ReadBag(5, &xtrace)
 	assert.Nil(t, err)
 
-	assert.NotNil(t, xtrace.TaskID)
-	assert.Equal(t, int64(-8089140025500181713), *xtrace.TaskID)
+	assert.NotNil(t, xtrace.taskID)
+	assert.Equal(t, int64(-8089140025500181713), *xtrace.taskID)
 
-	assert.Equal(t, len(xtrace.ParentEventIDs), 3)
+	assert.Equal(t, len(xtrace.parentEventIDs), 3)
 	expectParentIds := make(map[int64](struct{}))
 	expectParentIds[int64(-990513252474593225)] = struct{}{}
 	expectParentIds[int64(161603163048568192)] = struct{}{}
 	expectParentIds[int64(9050080335756692728)] = struct{}{}
 
-	assert.Equal(t, expectParentIds, xtrace.ParentEventIDs)
+	assert.Equal(t, expectParentIds, xtrace.parentEventIDs)
 
-	assert.False(t, xtrace.Overflowed)
+	assert.False(t, xtrace.overflowed)
 
-	assert.Equal(t, []atomlayer.Atom{baggageprotocol.MakeIndexedHeader(1, 3), baggageprotocol.MakeDataAtom([]byte{3})}, xtrace.Unknown)
+	assert.Equal(t, []atomlayer.Atom{baggageprotocol.MakeIndexedHeader(1, 3), baggageprotocol.MakeDataAtom([]byte{3})}, xtrace.unknown)
+}
+
+func TestXTraceTaskID(t *testing.T) {
+	var xtrace XTraceMetadata
+	taskID := int64(55)
+	xtrace.taskID = &taskID
+
+	var baggage tracingplane.BaggageContext
+	baggage.Set(5, &xtrace)
+
+	expect := atoms(
+		header(0, 5),
+			header(1, 0),
+				data(0,0,0,0,0,0,0,55),
+	)
+	assert.Equal(t, expect, baggage.Atoms)
+}
+
+func TestXTraceTaskIDAndParents(t *testing.T) {
+	var xtrace XTraceMetadata
+	xtrace.SetTaskID(55)
+	xtrace.AddParentEventID(70, 71)
+
+	var baggage tracingplane.BaggageContext
+	err := baggage.Set(5, &xtrace)
+
+	assert.Nil(t, err)
+
+	expect := atoms(
+		header(0, 5),
+		header(1, 0),
+		data(0,0,0,0,0,0,0,55),
+		header(1, 1),
+		data(0,0,0,0,0,0,0,70),
+		data(0,0,0,0,0,0,0,71),
+	)
+	assert.Equal(t, expect, baggage.Atoms)
+}
+
+func TestUpdateXTraceParents(t *testing.T) {
+	var xtrace XTraceMetadata
+	xtrace.SetTaskID(55)
+	xtrace.AddParentEventID(70)
+
+	var baggage tracingplane.BaggageContext
+	err := baggage.Set(5, &xtrace)
+
+	assert.Nil(t, err)
+
+	expect := atoms(
+		header(0, 5),
+			header(1, 0),
+				data(0,0,0,0,0,0,0,55),
+			header(1, 1),
+				data(0,0,0,0,0,0,0,70),
+	)
+	assert.Equal(t, expect, baggage.Atoms)
+
+	xtrace = XTraceMetadata{}
+	err = baggage.ReadBag(5, &xtrace)
+
+	assert.Nil(t, err)
+
+	assert.Equal(t, int64(55), xtrace.GetTaskID())
+	assert.Equal(t, 1, xtrace.ParentEventIDsCount())
+	assert.Equal(t, []int64{70}, xtrace.GetParentEventIDs())
+
+	xtrace.ClearParentEventIDs()
+	xtrace.AddParentEventID(50)
+
+	err = baggage.Set(5, &xtrace)
+
+	assert.Nil(t, err)
+
+	expect = atoms(
+		header(0, 5),
+			header(1, 0),
+				data(0,0,0,0,0,0,0,55),
+			header(1, 1),
+				data(0,0,0,0,0,0,0,50),
+	)
+	assert.Equal(t, expect, baggage.Atoms)
+
+	xtrace = XTraceMetadata{}
+	err = baggage.ReadBag(5, &xtrace)
+	assert.Equal(t, int64(55), xtrace.GetTaskID())
+	assert.Equal(t, 1, xtrace.ParentEventIDsCount())
+	assert.Equal(t, []int64{50}, xtrace.GetParentEventIDs())
+
+}
+
+func TestUpdateXTrace(t *testing.T) {
+	var baggage tracingplane.BaggageContext
+	baggage.Atoms = atoms(
+		header(0, 3),
+			data(5),
+		header(0, 5),
+			header(1, 0),
+				data(143, 189, 154, 1, 65, 170, 219, 47),
+		header(1, 1),
+			data(242, 64, 253, 113, 224, 239, 96, 55),
+			data(2, 62, 33, 56, 120, 22, 229, 128),
+			data(125, 152, 88, 29, 177, 134, 140, 248),
+		header(1, 3),
+			data(3),
+		header(0, 10),
+			data(100),
+	)
 }

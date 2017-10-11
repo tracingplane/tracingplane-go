@@ -80,6 +80,7 @@ func (w *Writer) WriteSorted(datas ...[]byte) {
 		atoms = append(atoms, MakeDataAtom(data))
 	}
 	sort.Sort(LexicographicAtomSorter(atoms))
+	w.atoms = append(w.atoms, atoms...)
 }
 
 func (w *Writer) MarkOverflow() {

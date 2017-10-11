@@ -9,4 +9,5 @@ type Bag interface {
 	Read(r *baggageprotocol.Reader)
 	Write(w *baggageprotocol.Writer)
 	SetUnprocessedAtoms(atoms []atomlayer.Atom)
+	GetUnprocessedAtoms() []atomlayer.Atom
 }
