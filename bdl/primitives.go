@@ -91,3 +91,31 @@ func ReadInt64Fixed(bytes []byte) *int64 {
 func WriteInt64Fixed(v int64) []byte {
 	return WriteUint64Fixed(uint64(v))
 }
+
+func ReadBool(bytes []byte) *bool {
+	var value bool
+	switch {
+	case len(bytes) != 1: return nil
+	case bytes[0] == byte(0): value = false
+	case bytes[0] == byte(1): value = true
+	default: return nil
+	}
+	return &value
+}
+
+func WriteBool(v bool) []byte {
+	if v { return []byte{1} }
+	return []byte{0}
+}
+
+func ReadTaint(bytes []byte) *bool {
+	boolValue := ReadBool(bytes)
+	if boolValue == nil { return nil }
+	*boolValue = !*boolValue
+	return boolValue
+}
+
+func WriteTaint(v bool) []byte {
+	if v { return []byte{0} }
+	return []byte{1}
+}
