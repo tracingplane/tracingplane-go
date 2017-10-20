@@ -109,13 +109,17 @@ func WriteBool(v bool) []byte {
 }
 
 func ReadTaint(bytes []byte) *bool {
-	boolValue := ReadBool(bytes)
-	if boolValue == nil { return nil }
-	*boolValue = !*boolValue
-	return boolValue
+	//boolValue := ReadBool(bytes)
+	//if boolValue == nil { return nil }
+	//*boolValue = !*boolValue
+	//return boolValue
+	// This should be read inverted, but currently not
+	return ReadBool(bytes)
 }
 
 func WriteTaint(v bool) []byte {
-	if v { return []byte{0} }
-	return []byte{1}
+	//if v { return []byte{0} }
+	//return []byte{1}
+	// This should be written inverted, but currently not
+	return WriteBool(v)
 }

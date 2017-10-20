@@ -5,7 +5,6 @@ import (
 	"github.com/tracingplane/tracingplane-go/tracingplane"
 	"testing"
 	"github.com/tracingplane/tracingplane-go/atomlayer"
-	"fmt"
 )
 
 func TestZipkin(t *testing.T) {
@@ -26,12 +25,12 @@ func TestZipkin(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Empty(t, zmd.unknown)
 	assert.False(t, zmd.overflowed)
-	assert.NotNil(t, zmd.traceID)
-	assert.Equal(t, int64(55), *zmd.traceID)
-	assert.NotNil(t, zmd.spanID)
-	assert.Equal(t, int64(70), *zmd.spanID)
-	assert.NotNil(t, zmd.parentSpanID)
-	assert.Equal(t, int64(10), *zmd.parentSpanID)
+	assert.NotNil(t, zmd.TraceID)
+	assert.Equal(t, int64(55), *zmd.TraceID)
+	assert.NotNil(t, zmd.SpanID)
+	assert.Equal(t, int64(70), *zmd.SpanID)
+	assert.NotNil(t, zmd.ParentSpanID)
+	assert.Equal(t, int64(10), *zmd.ParentSpanID)
 
 	var baggage2 tracingplane.BaggageContext
 	baggage2.Set(2, &zmd)
