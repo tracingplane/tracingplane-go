@@ -155,12 +155,14 @@ func (zipkinMetadata *ZipkinMetadata) Write(w *baggageprotocol.Writer) {
 
 		sort.Sort(baggageprotocol.LexicographicAtomSorter(tagKeys))
 
+		w.Enter(4)
 		for _,tagKey := range(tagKeys) {
 			tagValue := []byte(zipkinMetadata.Tags[string(tagKey)])
 			w.EnterKey(tagKey)
 			w.Write(tagValue)
 			w.Exit()
 		}
+		w.Exit()
 	}
 
 	// Overflow
